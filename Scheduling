@@ -1,0 +1,230 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "name": "Adil.ipynb",
+      "provenance": [],
+      "collapsed_sections": []
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "RL0X_iHFjjEy",
+        "outputId": "2ce54b3f-f445-4ad2-a2be-0482e5699256"
+      },
+      "source": [
+        "!pip install pandas sqlalchemy"
+      ],
+      "execution_count": 1,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Requirement already satisfied: pandas in /usr/local/lib/python3.7/dist-packages (1.1.5)\n",
+            "Requirement already satisfied: sqlalchemy in /usr/local/lib/python3.7/dist-packages (1.4.27)\n",
+            "Requirement already satisfied: pytz>=2017.2 in /usr/local/lib/python3.7/dist-packages (from pandas) (2018.9)\n",
+            "Requirement already satisfied: python-dateutil>=2.7.3 in /usr/local/lib/python3.7/dist-packages (from pandas) (2.8.2)\n",
+            "Requirement already satisfied: numpy>=1.15.4 in /usr/local/lib/python3.7/dist-packages (from pandas) (1.19.5)\n",
+            "Requirement already satisfied: six>=1.5 in /usr/local/lib/python3.7/dist-packages (from python-dateutil>=2.7.3->pandas) (1.15.0)\n",
+            "Requirement already satisfied: importlib-metadata in /usr/local/lib/python3.7/dist-packages (from sqlalchemy) (4.8.2)\n",
+            "Requirement already satisfied: greenlet!=0.4.17 in /usr/local/lib/python3.7/dist-packages (from sqlalchemy) (1.1.2)\n",
+            "Requirement already satisfied: typing-extensions>=3.6.4 in /usr/local/lib/python3.7/dist-packages (from importlib-metadata->sqlalchemy) (3.10.0.2)\n",
+            "Requirement already satisfied: zipp>=0.5 in /usr/local/lib/python3.7/dist-packages (from importlib-metadata->sqlalchemy) (3.6.0)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "VGlcHSdKjsv8"
+      },
+      "source": [
+        "'''\n",
+        "Note: Upload the .tbl files first!!!!!\n",
+        "'''\n",
+        "\n",
+        "import pandas as pd\n",
+        "from sqlalchemy import create_engine\n",
+        "from pprint import pprint\n",
+        "\n",
+        "engine = create_engine('sqlite:///star.sqlite', echo=False)\n",
+        "\n",
+        "\n",
+        "schema={ 'LINEITEM': ['L_ID', 'L_ORDERKEY', 'L_PS_ID', 'L_LINENUMBER', 'L_QUANTITY', 'L_EXTENDEDPRICE', 'L_DISCOUNT', 'L_TAX', 'L_RETURNFLAG', 'L_LINESTATUS', 'L_SHIPDATE', 'L_COMMITDATE', 'L_RECEIPTDATE', 'L_SHIPINSTRUCT', 'L_SHIPMODE', 'L_COMMENT', 'UNNAMED'],\n",
+        "         'ORDERS':['O_ORDERKEY', 'O_CUSTKEY', 'O_ORDERSTATUS', 'O_TOTALPRICE', 'O_ORDERDATE', 'O_ORDERPRIORITY', 'O_CLERK', 'O_SHIPPRIORITY', 'O_COMMENT', 'UNNAMED'],\n",
+        "         'PARTSUPP':['PS_PARTKEY', 'PS_SUPPKEY', 'PS_AVAILQTY', 'PS_SUPPLYCOST', 'PS_COMMENT', 'UNNAMED'],\n",
+        "         'CUSTOMER':['C_CUSTKEY', 'C_NAME', 'C_ADDRESS', 'C_NATIONKEY', 'C_PHONE', 'C_ACCBAL', 'C_MKTSEGMENT', 'C_COMMENT', 'UNNAMED'],\n",
+        "         'SUPPLIER':['S_SUPPKEY', 'S_NAME', 'S_ADDRESS', 'S_NATIONKEY', 'S_PHONE', 'S_ACCBAL', 'S_COMMENT', 'UNNAMED'],\n",
+        "         'REGION':['R_REGIONKEY', 'R_NAME', 'R_COMMENT', 'UNNAMED'],\n",
+        "         'NATION': ['N_NATIONKEY', 'N_NAME', 'N_REGIONKEY', 'N_COMMENT', 'UNNAMED'],\n",
+        "         'PART':['P_PARTKEY', 'P_NAME', 'P_MFGR', 'P_BRAND', 'P_TYPE', 'P_SIZE', 'P_CONTAINER', 'P_RETAILPRICE', 'P_COMMENT', 'UNNAMED']\n",
+        "}\n",
+        "\n",
+        "dfs = {}"
+      ],
+      "execution_count": 2,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "ZDCBQxraj2Ty"
+      },
+      "source": [
+        "def pipeline():\n",
+        "  for table, cols in schema.items():\n",
+        "      df = pd.read_csv(f'/content/{table.lower()}.tbl', delimiter='|', header=None)\n",
+        "      df.columns = cols\n",
+        "      df = df.loc[:, ~df.columns.str.contains('^UNNAMED')]\n",
+        "      dfs[table] = df\n",
+        "\n",
+        "  nation = dfs['NATION'].set_index('N_NATIONKEY').T.to_dict()\n",
+        "  orders = dfs['ORDERS'].set_index('O_ORDERKEY').T.to_dict()\n",
+        "  lineitem = dfs['LINEITEM'].set_index('L_ID').T.to_dict()\n",
+        "  partsupp = dfs['PARTSUPP']#.set_index(['PS_PARTKEY', 'PS_SUPPKEY'])#.T.to_dict()\n",
+        "  customer = dfs['CUSTOMER'].set_index('C_CUSTKEY').T.to_dict()\n",
+        "  part = dfs['PART'].set_index('P_PARTKEY').T.to_dict()\n",
+        "  region = dfs['REGION'].set_index('R_REGIONKEY').T.to_dict()\n",
+        "  supplier = dfs['SUPPLIER'].set_index('S_SUPPKEY').T.to_dict()\n",
+        "\n",
+        "  dim_customer = customer\n",
+        "  for custkey, cols in customer.items():\n",
+        "      n = nation[cols['C_NATIONKEY']] # nation\n",
+        "      r = region[n['N_REGIONKEY']] # region\n",
+        "      dim_customer[custkey]['N_NAME'] = n['N_NAME']\n",
+        "      dim_customer[custkey]['R_NAME'] = r['R_NAME']\n",
+        "\n",
+        "      del dim_customer[custkey]['C_NATIONKEY']\n",
+        "      del dim_customer[custkey]['C_COMMENT']\n",
+        "\n",
+        "  dim_lineitem = lineitem\n",
+        "  for lid, cols in lineitem.items():\n",
+        "      ps = partsupp.iloc[cols['L_PS_ID']] # partsupp\n",
+        "      p = part[ps['PS_PARTKEY']] # part\n",
+        "\n",
+        "      dim_lineitem[lid]['PS_AVAILQTY'] = ps['PS_AVAILQTY']\n",
+        "      dim_lineitem[lid]['PS_SUPPLYCOST'] = ps['PS_SUPPLYCOST']\n",
+        "      dim_lineitem[lid]['P_NAME'] = p['P_NAME']\n",
+        "      dim_lineitem[lid]['P_MFGR'] = p['P_MFGR']\n",
+        "      dim_lineitem[lid]['P_BRAND'] = p['P_BRAND']\n",
+        "      dim_lineitem[lid]['P_TYPE'] = p['P_TYPE']\n",
+        "      dim_lineitem[lid]['P_SIZE'] = p['P_SIZE']\n",
+        "      dim_lineitem[lid]['P_CONTAINER'] = p['P_CONTAINER']\n",
+        "      dim_lineitem[lid]['P_RETAILPRICE'] = p['P_RETAILPRICE']\n",
+        "\n",
+        "      del dim_lineitem[lid]['L_PS_ID']\n",
+        "      del dim_lineitem[lid]['L_ORDERKEY']\n",
+        "      del dim_lineitem[lid]['L_COMMENT']\n",
+        "      del dim_lineitem[lid]['L_SHIPINSTRUCT']\n",
+        "\n",
+        "  dim_orders = orders\n",
+        "  for oid, cols in orders.items():\n",
+        "      del dim_orders[oid]['O_CUSTKEY']\n",
+        "      del dim_orders[oid]['O_COMMENT']\n",
+        "\n",
+        "  dim_supplier = supplier\n",
+        "  for sid, cols in supplier.items():\n",
+        "      n = nation[cols['S_NATIONKEY']] # nation\n",
+        "      r = region[n['N_REGIONKEY']] # region\n",
+        "\n",
+        "      dim_supplier[sid]['N_NAME'] = n['N_NAME']\n",
+        "      dim_supplier[sid]['R_NAME'] = r['R_NAME']\n",
+        "\n",
+        "      del dim_supplier[sid]['S_COMMENT']\n",
+        "      del dim_supplier[sid]['S_NATIONKEY']\n",
+        "\n",
+        "  fact_table = {\n",
+        "      'L_ID': list(dim_lineitem.keys()),\n",
+        "      'C_CUSTKEY': list(dim_customer.keys()),\n",
+        "      'O_ORDERKEY': list(dim_orders.keys()),\n",
+        "      'S_SUPPKEY': list(dim_supplier.keys())\n",
+        "  }\n",
+        "\n",
+        "  # Dictionaries to Dataframe\n",
+        "  customer_df = pd.DataFrame.from_dict(dim_customer, orient='index')\n",
+        "  supplier_df = pd.DataFrame.from_dict(dim_supplier, orient='index')\n",
+        "  orders_df = pd.DataFrame.from_dict(dim_orders, orient='index')\n",
+        "  lineitem_df = pd.DataFrame.from_dict(dim_lineitem, orient='index')\n",
+        "\n",
+        "  def pad_dict_list(dict_list, padel):\n",
+        "      lmax = 0\n",
+        "      for lname in dict_list.keys():\n",
+        "          lmax = max(lmax, len(dict_list[lname]))\n",
+        "      for lname in dict_list.keys():\n",
+        "          ll = len(dict_list[lname])\n",
+        "          if  ll < lmax:\n",
+        "              dict_list[lname] += [padel] * (lmax - ll)\n",
+        "      return dict_list\n",
+        "\n",
+        "  fact_table_df = pd.DataFrame.from_dict(pad_dict_list(fact_table, None))\n",
+        "\n",
+        "  # Dataframe to SQL Tables\n",
+        "  customer_df.to_sql('DIM_CUSTOMER', engine)\n",
+        "  supplier_df.to_sql('DIM_SUPPLIER', engine)\n",
+        "  lineitem_df.to_sql('DIM_LINEITEM', engine)\n",
+        "  orders_df.to_sql('DIM_ORDERS', engine)\n",
+        "\n",
+        "  fact_table_df.to_sql('FACT_TABLE', engine)"
+      ],
+      "execution_count": 3,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "k975BV6sj62s",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 452
+        },
+        "outputId": "15b17d94-bcb3-42e0-a3db-e2a53e1dd4e6"
+      },
+      "source": [
+        "import time\n",
+        "import os\n",
+        "\n",
+        "while True:\n",
+        "  os.system('rm star.sqlite') # delete previous file if exists\n",
+        "  pipeline()\n",
+        "  time.sleep(60*60*2) # 2hr frequency"
+      ],
+      "execution_count": 6,
+      "outputs": [
+        {
+          "output_type": "error",
+          "ename": "FileNotFoundError",
+          "evalue": "ignored",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mFileNotFoundError\u001b[0m                         Traceback (most recent call last)",
+            "\u001b[0;32m<ipython-input-6-882f8a0fa043>\u001b[0m in \u001b[0;36m<module>\u001b[0;34m()\u001b[0m\n\u001b[1;32m      4\u001b[0m \u001b[0;32mwhile\u001b[0m \u001b[0;32mTrue\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      5\u001b[0m   \u001b[0mos\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0msystem\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m'rm star.sqlite'\u001b[0m\u001b[0;34m)\u001b[0m \u001b[0;31m# delete previous file if exists\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 6\u001b[0;31m   \u001b[0mpipeline\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      7\u001b[0m   \u001b[0mtime\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0msleep\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;36m60\u001b[0m\u001b[0;34m*\u001b[0m\u001b[0;36m60\u001b[0m\u001b[0;34m*\u001b[0m\u001b[0;36m2\u001b[0m\u001b[0;34m)\u001b[0m \u001b[0;31m# 2hr frequency\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m<ipython-input-3-4c782dfcb518>\u001b[0m in \u001b[0;36mpipeline\u001b[0;34m()\u001b[0m\n\u001b[1;32m      1\u001b[0m \u001b[0;32mdef\u001b[0m \u001b[0mpipeline\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      2\u001b[0m   \u001b[0;32mfor\u001b[0m \u001b[0mtable\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcols\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mschema\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mitems\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 3\u001b[0;31m       \u001b[0mdf\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mpd\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mread_csv\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34mf'/content/{table.lower()}.tbl'\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mdelimiter\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m'|'\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mheader\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;32mNone\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      4\u001b[0m       \u001b[0mdf\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mcolumns\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mcols\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      5\u001b[0m       \u001b[0mdf\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mdf\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mloc\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m~\u001b[0m\u001b[0mdf\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mcolumns\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mstr\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mcontains\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m'^UNNAMED'\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.7/dist-packages/pandas/io/parsers.py\u001b[0m in \u001b[0;36mread_csv\u001b[0;34m(filepath_or_buffer, sep, delimiter, header, names, index_col, usecols, squeeze, prefix, mangle_dupe_cols, dtype, engine, converters, true_values, false_values, skipinitialspace, skiprows, skipfooter, nrows, na_values, keep_default_na, na_filter, verbose, skip_blank_lines, parse_dates, infer_datetime_format, keep_date_col, date_parser, dayfirst, cache_dates, iterator, chunksize, compression, thousands, decimal, lineterminator, quotechar, quoting, doublequote, escapechar, comment, encoding, dialect, error_bad_lines, warn_bad_lines, delim_whitespace, low_memory, memory_map, float_precision)\u001b[0m\n\u001b[1;32m    686\u001b[0m     )\n\u001b[1;32m    687\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 688\u001b[0;31m     \u001b[0;32mreturn\u001b[0m \u001b[0m_read\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mfilepath_or_buffer\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mkwds\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    689\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    690\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.7/dist-packages/pandas/io/parsers.py\u001b[0m in \u001b[0;36m_read\u001b[0;34m(filepath_or_buffer, kwds)\u001b[0m\n\u001b[1;32m    452\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    453\u001b[0m     \u001b[0;31m# Create the parser.\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 454\u001b[0;31m     \u001b[0mparser\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mTextFileReader\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mfp_or_buf\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m**\u001b[0m\u001b[0mkwds\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    455\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    456\u001b[0m     \u001b[0;32mif\u001b[0m \u001b[0mchunksize\u001b[0m \u001b[0;32mor\u001b[0m \u001b[0miterator\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.7/dist-packages/pandas/io/parsers.py\u001b[0m in \u001b[0;36m__init__\u001b[0;34m(self, f, engine, **kwds)\u001b[0m\n\u001b[1;32m    946\u001b[0m             \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0moptions\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m\"has_index_names\"\u001b[0m\u001b[0;34m]\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mkwds\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m\"has_index_names\"\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    947\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 948\u001b[0;31m         \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_make_engine\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mengine\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    949\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    950\u001b[0m     \u001b[0;32mdef\u001b[0m \u001b[0mclose\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.7/dist-packages/pandas/io/parsers.py\u001b[0m in \u001b[0;36m_make_engine\u001b[0;34m(self, engine)\u001b[0m\n\u001b[1;32m   1178\u001b[0m     \u001b[0;32mdef\u001b[0m \u001b[0m_make_engine\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mengine\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m\"c\"\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1179\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0mengine\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;34m\"c\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 1180\u001b[0;31m             \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_engine\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mCParserWrapper\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mf\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m**\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0moptions\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   1181\u001b[0m         \u001b[0;32melse\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1182\u001b[0m             \u001b[0;32mif\u001b[0m \u001b[0mengine\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;34m\"python\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.7/dist-packages/pandas/io/parsers.py\u001b[0m in \u001b[0;36m__init__\u001b[0;34m(self, src, **kwds)\u001b[0m\n\u001b[1;32m   2008\u001b[0m         \u001b[0mkwds\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m\"usecols\"\u001b[0m\u001b[0;34m]\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0musecols\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   2009\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 2010\u001b[0;31m         \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_reader\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mparsers\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mTextReader\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0msrc\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m**\u001b[0m\u001b[0mkwds\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   2011\u001b[0m         \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0munnamed_cols\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_reader\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0munnamed_cols\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   2012\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32mpandas/_libs/parsers.pyx\u001b[0m in \u001b[0;36mpandas._libs.parsers.TextReader.__cinit__\u001b[0;34m()\u001b[0m\n",
+            "\u001b[0;32mpandas/_libs/parsers.pyx\u001b[0m in \u001b[0;36mpandas._libs.parsers.TextReader._setup_parser_source\u001b[0;34m()\u001b[0m\n",
+            "\u001b[0;31mFileNotFoundError\u001b[0m: [Errno 2] No such file or directory: '/content/orders.tbl'"
+          ]
+        }
+      ]
+    }
+  ]
+}
