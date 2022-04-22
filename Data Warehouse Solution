@@ -1,0 +1,116 @@
+import pandas as pd
+from sqlalchemy import create_engine
+from pprint import pprint
+
+engine = create_engine('sqlite:///star.sqlite', echo=False)
+
+
+schema={ 'LINEITEM': ['L_ID', 'L_ORDERKEY', 'L_PS_ID', 'L_LINENUMBER', 'L_QUANTITY', 'L_EXTENDEDPRICE', 'L_DISCOUNT', 'L_TAX', 'L_RETURNFLAG', 'L_LINESTATUS', 'L_SHIPDATE', 'L_COMMITDATE', 'L_RECEIPTDATE', 'L_SHIPINSTRUCT', 'L_SHIPMODE', 'L_COMMENT', 'UNNAMED'],
+         'ORDERS':['O_ORDERKEY', 'O_CUSTKEY', 'O_ORDERSTATUS', 'O_TOTALPRICE', 'O_ORDERDATE', 'O_ORDERPRIORITY', 'O_CLERK', 'O_SHIPPRIORITY', 'O_COMMENT', 'UNNAMED'],
+         'PARTSUPP':['PS_PARTKEY', 'PS_SUPPKEY', 'PS_AVAILQTY', 'PS_SUPPLYCOST', 'PS_COMMENT', 'UNNAMED'],
+         'CUSTOMER':['C_CUSTKEY', 'C_NAME', 'C_ADDRESS', 'C_NATIONKEY', 'C_PHONE', 'C_ACCBAL', 'C_MKTSEGMENT', 'C_COMMENT', 'UNNAMED'],
+         'SUPPLIER':['S_SUPPKEY', 'S_NAME', 'S_ADDRESS', 'S_NATIONKEY', 'S_PHONE', 'S_ACCBAL', 'S_COMMENT', 'UNNAMED'],
+         'REGION':['R_REGIONKEY', 'R_NAME', 'R_COMMENT', 'UNNAMED'],
+         'NATION': ['N_NATIONKEY', 'N_NAME', 'N_REGIONKEY', 'N_COMMENT', 'UNNAMED'],
+         'PART':['P_PARTKEY', 'P_NAME', 'P_MFGR', 'P_BRAND', 'P_TYPE', 'P_SIZE', 'P_CONTAINER', 'P_RETAILPRICE', 'P_COMMENT', 'UNNAMED']
+}
+
+dfs = {}
+
+for table, cols in schema.items():
+    df = pd.read_csv(f'data/{table.lower()}.tbl', delimiter='|', header=None)
+    df.columns = cols
+    df = df.loc[:, ~df.columns.str.contains('^UNNAMED')]
+    dfs[table] = df
+
+nation = dfs['NATION'].set_index('N_NATIONKEY').T.to_dict()
+orders = dfs['ORDERS'].set_index('O_ORDERKEY').T.to_dict()
+lineitem = dfs['LINEITEM'].set_index('L_ID').T.to_dict()
+partsupp = dfs['PARTSUPP']#.set_index(['PS_PARTKEY', 'PS_SUPPKEY'])#.T.to_dict()
+customer = dfs['CUSTOMER'].set_index('C_CUSTKEY').T.to_dict()
+part = dfs['PART'].set_index('P_PARTKEY').T.to_dict()
+region = dfs['REGION'].set_index('R_REGIONKEY').T.to_dict()
+supplier = dfs['SUPPLIER'].set_index('S_SUPPKEY').T.to_dict()
+
+dim_customer = customer
+for custkey, cols in customer.items():
+    n = nation[cols['C_NATIONKEY']] # nation
+    r = region[n['N_REGIONKEY']] # region
+    dim_customer[custkey]['N_NAME'] = n['N_NAME']
+    dim_customer[custkey]['R_NAME'] = r['R_NAME']
+
+    del dim_customer[custkey]['C_NATIONKEY']
+    del dim_customer[custkey]['C_COMMENT']
+
+dim_lineitem = lineitem
+for lid, cols in lineitem.items():
+    ps = partsupp.iloc[cols['L_PS_ID']] # partsupp
+    p = part[ps['PS_PARTKEY']] # part
+
+    dim_lineitem[lid]['PS_AVAILQTY'] = ps['PS_AVAILQTY']
+    dim_lineitem[lid]['PS_SUPPLYCOST'] = ps['PS_SUPPLYCOST']
+    dim_lineitem[lid]['P_NAME'] = p['P_NAME']
+    dim_lineitem[lid]['P_MFGR'] = p['P_MFGR']
+    dim_lineitem[lid]['P_BRAND'] = p['P_BRAND']
+    dim_lineitem[lid]['P_TYPE'] = p['P_TYPE']
+    dim_lineitem[lid]['P_SIZE'] = p['P_SIZE']
+    dim_lineitem[lid]['P_CONTAINER'] = p['P_CONTAINER']
+    dim_lineitem[lid]['P_RETAILPRICE'] = p['P_RETAILPRICE']
+
+    del dim_lineitem[lid]['L_PS_ID']
+    del dim_lineitem[lid]['L_ORDERKEY']
+    del dim_lineitem[lid]['L_COMMENT']
+    del dim_lineitem[lid]['L_SHIPINSTRUCT']
+
+dim_orders = orders
+for oid, cols in orders.items():
+    del dim_orders[oid]['O_CUSTKEY']
+    del dim_orders[oid]['O_COMMENT']
+
+dim_supplier = supplier
+for sid, cols in supplier.items():
+    n = nation[cols['S_NATIONKEY']] # nation
+    r = region[n['N_REGIONKEY']] # region
+
+    dim_supplier[sid]['N_NAME'] = n['N_NAME']
+    dim_supplier[sid]['R_NAME'] = r['R_NAME']
+
+    del dim_supplier[sid]['S_COMMENT']
+    del dim_supplier[sid]['S_NATIONKEY']
+
+fact_table = {
+    'L_ID': list(dim_lineitem.keys()),
+    'C_CUSTKEY': list(dim_customer.keys()),
+    'O_ORDERKEY': list(dim_orders.keys()),
+    'S_SUPPKEY': list(dim_supplier.keys())
+}
+
+# Dictionaries to Dataframe
+customer_df = pd.DataFrame.from_dict(dim_customer, orient='index')
+supplier_df = pd.DataFrame.from_dict(dim_supplier, orient='index')
+orders_df = pd.DataFrame.from_dict(dim_orders, orient='index')
+lineitem_df = pd.DataFrame.from_dict(dim_lineitem, orient='index')
+
+def pad_dict_list(dict_list, padel):
+    lmax = 0
+    for lname in dict_list.keys():
+        lmax = max(lmax, len(dict_list[lname]))
+    for lname in dict_list.keys():
+        ll = len(dict_list[lname])
+        if  ll < lmax:
+            dict_list[lname] += [padel] * (lmax - ll)
+    return dict_list
+
+fact_table_df = pd.DataFrame.from_dict(pad_dict_list(fact_table, None))
+
+# Dataframe to SQL Tables
+customer_df.to_sql('DIM_CUSTOMER', engine)
+supplier_df.to_sql('DIM_SUPPLIER', engine)
+lineitem_df.to_sql('DIM_LINEITEM', engine)
+orders_df.to_sql('DIM_ORDERS', engine)
+
+fact_table_df.to_sql('FACT_TABLE', engine)
+
+
+
+
