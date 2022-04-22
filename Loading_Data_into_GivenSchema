@@ -1,0 +1,30 @@
+import sqlite3 as sql
+import os
+
+flag = True
+db_file = 'db.sqlite'
+if os.path.exists(db_file):
+    flag = False
+
+conn = sql.connect("db.sqlite")
+
+if flag:
+    queries = open('ddl.sql', 'r').read()
+    for query in queries.split(';'):
+        conn.execute(query)
+
+for element in os.listdir('data'):
+    path = f'data/{element}'
+    tablename = element.upper()[:-4]
+    if os.path.isfile(path):
+        data = open(path, 'r').read().strip().split('\n')
+        print(tablename)
+        for record in data:
+            values = ','.join([f'"{i}"' for i in record.strip('|').split('|')])
+            print(values)
+            insert_query = f"INSERT INTO {tablename} VALUES({values})"
+            conn.execute(insert_query)
+    conn.commit()
+        
+
+conn.close()
